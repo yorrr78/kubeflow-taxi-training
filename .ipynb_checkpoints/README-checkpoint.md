@@ -1,8 +1,7 @@
 # Vertex AI Pipeline(Kubeflow) Training model pipeline
 
 This sample kubeflow pipeline is for training the simple regression model.
-</br>Newyork taxi data used. </br>
-https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page </br>
+</br>[Newyork taxi data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) used. </br>
 
 This pipeline generate the model to predict the driving duration, 
 based on pickup location (PULocationID), dropoff location(DOLocationID) and trip distance.
@@ -24,4 +23,13 @@ This Kubeflow training pipeline consist of steps following.
 6. Deploy the model (Depending on the evaluation result)
 7. Get test prediction results
 
-![img_info](./kubeflow-graph.png)
+![Flow Graph](./kubeflow-graph.png)
+
+
+
+## Key files
+```text
+- training/kfp-training.ipynb: generating kfp components
+- prediction_request.py: send reqeusts to deployed model
+
+```
