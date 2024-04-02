@@ -1,0 +1,66 @@
+name: Test prediction
+description: Get predictions from model served with test data
+inputs:
+- {name: project_id, type: String}
+- {name: region, type: String}
+- {name: test_ds, type: Dataset}
+- {name: endpoint_resource_name, type: String}
+- {name: bucket_name, type: String}
+- {name: prediction_blob, type: String}
+outputs:
+- {name: Output, type: String}
+implementation:
+  container:
+    image: python:3.9-slim
+    command:
+    - sh
+    - -c
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'pyarrow' 'google-cloud-aiplatform' 'google-cloud-storage' 'kfp==1.8.22' && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef test_prediction(\n    project_id: str ,\n    region: str,\n\
+      \    test_ds: Input[Dataset],\n    endpoint_resource_name: str,\n    bucket_name:\
+      \ str,\n    prediction_blob: str\n) -> str:\n\n    \"\"\"Get predictions from\
+      \ model served with test data\"\"\"\n    from google.cloud import aiplatform\n\
+      \    from google.cloud import storage\n    import logging\n    import pandas\
+      \ as pd\n    import json\n\n\n    logging.info(f\"testds: {test_ds}\")\n   \
+      \ logging.info(f\"test_ds: {test_ds.path}\")\n    logging.info(f\"model_resource_name\
+      \ : {region}\")\n\n    def prepare_dictionaries(df: pd.DataFrame):\n       \
+      \ \"\"\"Composite\"\"\"\n        df['PU_DO'] = df['PULocationID'] + '_' + df['DOLocationID']\n\
+      \        categorical = ['PU_DO']\n        numerical = ['trip_distance']\n  \
+      \      dicts = df[categorical + numerical].to_dict(orient='records')\n     \
+      \   return dicts\n\n\n    def get_predictions(instances, region, endpoint_resource_name):\n\
+      \        \"\"\"Get predictions from deployed model\"\"\"\n\n        client_options\
+      \ = {\"api_endpoint\": f\"{region}-aiplatform.googleapis.com\"}\n        client\
+      \ = aiplatform.gapic.PredictionServiceClient(client_options=client_options)\n\
+      \n        response = client.predict(\n            endpoint=endpoint_resource_name,\
+      \ \n            instances=instances\n        )\n\n        predictions = {\n\
+      \            \"predictions\": list(response.predictions)\n        }\n\n    \
+      \    # Write predictions to a JSON file\n        output_file = \"predictions.json\"\
+      \n        with open(output_file, \"w\") as f:\n            json.dump(predictions,\
+      \ f)\n\n        return output_file\n\n\n    def upload_to_gcs(prediction_file,\
+      \ bucket_name, prediction_blob):\n        \"\"\"Upload the file to Google Cloud\
+      \ Storage\"\"\"\n        client = storage.Client()\n        bucket = client.bucket(bucket_name)\n\
+      \        blob = bucket.blob(prediction_blob)\n        blob.upload_from_filename(prediction_file)\n\
+      \n        logging.info(f\"Predictions uploaded to gs://{bucket_name}/{prediction_blob}\
+      \ successfully!\")    \n\n\n    test_ds = pd.read_parquet(test_ds.path)\n  \
+      \  test_dict_ds = prepare_dictionaries(test_ds)\n\n    prediction_file = get_predictions(\n\
+      \        instances=test_dict_ds,\n        region=region,\n        endpoint_resource_name=endpoint_resource_name,\n\
+      \    )\n\n    upload_to_gcs(prediction_file, bucket_name, prediction_blob)\n\
+      \n    return f'gs://{bucket_name}/{prediction_blob}' \n\n"
+    args:
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - test_prediction

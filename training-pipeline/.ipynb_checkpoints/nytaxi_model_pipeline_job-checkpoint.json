@@ -1,0 +1,843 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-condition-deploy-decision-1": {
+        "dag": {
+          "tasks": {
+            "deploy-model": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-deploy-model"
+              },
+              "dependentTasks": [
+                "register-model"
+              ],
+              "inputs": {
+                "parameters": {
+                  "model_resource_name": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "model_resource_name",
+                      "producerTask": "register-model"
+                    }
+                  },
+                  "project_id": {
+                    "componentInputParameter": "pipelineparam--project_id"
+                  },
+                  "region": {
+                    "componentInputParameter": "pipelineparam--region"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "deploy-model"
+              }
+            },
+            "register-model": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-register-model"
+              },
+              "inputs": {
+                "artifacts": {
+                  "model": {
+                    "componentInputArtifact": "pipelineparam--train-taxi-data-model"
+                  }
+                },
+                "parameters": {
+                  "model_name": {
+                    "componentInputParameter": "pipelineparam--model_name"
+                  },
+                  "project_id": {
+                    "componentInputParameter": "pipelineparam--project_id"
+                  },
+                  "region": {
+                    "componentInputParameter": "pipelineparam--region"
+                  },
+                  "serving_container_uri": {
+                    "componentInputParameter": "pipelineparam--serving_container_uri"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "register-model"
+              }
+            },
+            "test-prediction": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-test-prediction"
+              },
+              "dependentTasks": [
+                "deploy-model"
+              ],
+              "inputs": {
+                "artifacts": {
+                  "test_ds": {
+                    "componentInputArtifact": "pipelineparam--preprocess-taxi-data-test_data"
+                  }
+                },
+                "parameters": {
+                  "bucket_name": {
+                    "componentInputParameter": "pipelineparam--bucket_name"
+                  },
+                  "endpoint_resource_name": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "endpoint_resource_name",
+                      "producerTask": "deploy-model"
+                    }
+                  },
+                  "prediction_blob": {
+                    "componentInputParameter": "pipelineparam--prediction_blob"
+                  },
+                  "project_id": {
+                    "componentInputParameter": "pipelineparam--project_id"
+                  },
+                  "region": {
+                    "componentInputParameter": "pipelineparam--region"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "test-prediction"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "artifacts": {
+            "pipelineparam--preprocess-taxi-data-test_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "pipelineparam--train-taxi-data-model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "pipelineparam--bucket_name": {
+              "type": "STRING"
+            },
+            "pipelineparam--evaluate-model-dep_decision": {
+              "type": "STRING"
+            },
+            "pipelineparam--model_name": {
+              "type": "STRING"
+            },
+            "pipelineparam--prediction_blob": {
+              "type": "STRING"
+            },
+            "pipelineparam--project_id": {
+              "type": "STRING"
+            },
+            "pipelineparam--region": {
+              "type": "STRING"
+            },
+            "pipelineparam--serving_container_uri": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-deploy-model": {
+        "executorLabel": "exec-deploy-model",
+        "inputDefinitions": {
+          "parameters": {
+            "model_resource_name": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "endpoint_resource_name": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-download-taxi-data": {
+        "executorLabel": "exec-download-taxi-data",
+        "inputDefinitions": {
+          "parameters": {
+            "bucket_name": {
+              "type": "STRING"
+            },
+            "file": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-evaluate-model": {
+        "executorLabel": "exec-evaluate-model",
+        "inputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "val_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "deployment_metric": {
+              "type": "STRING"
+            },
+            "deployment_metric_threshold": {
+              "type": "DOUBLE"
+            },
+            "target_column_name": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "kpi": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "dep_decision": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-preprocess-taxi-data": {
+        "executorLabel": "exec-preprocess-taxi-data",
+        "inputDefinitions": {
+          "parameters": {
+            "input_data": {
+              "type": "STRING"
+            },
+            "test_size": {
+              "type": "DOUBLE"
+            },
+            "train_size": {
+              "type": "DOUBLE"
+            },
+            "valid_size": {
+              "type": "DOUBLE"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "test_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "train_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "valid_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-register-model": {
+        "executorLabel": "exec-register-model",
+        "inputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "model_name": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            },
+            "serving_container_uri": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "model_resource_name": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-test-prediction": {
+        "executorLabel": "exec-test-prediction",
+        "inputDefinitions": {
+          "artifacts": {
+            "test_ds": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "bucket_name": {
+              "type": "STRING"
+            },
+            "endpoint_resource_name": {
+              "type": "STRING"
+            },
+            "prediction_blob": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-train-taxi-data": {
+        "executorLabel": "exec-train-taxi-data",
+        "inputDefinitions": {
+          "artifacts": {
+            "train_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "params": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-deploy-model": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "deploy_model"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'pyarrow' 'scikit-learn' 'fsspec' 'gcsfs' 'google-cloud-aiplatform' 'kfp==1.8.22' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef deploy_model(\n    model_resource_name: str ,\n    project_id: str ,\n    region: str\n)-> NamedTuple(\n    \"Outputs\",\n    [\n        (\"endpoint_resource_name\", str),\n    ],\n):\n    \"\"\"Deploy the model to Vertex AI for online prediction\"\"\"\n    from google.cloud import aiplatform\n    import logging\n\n\n    logging.info(f\"model_resource_name : {model_resource_name}\")\n    logging.info(f\"project_id : {project_id}\")\n    logging.info(f\"region : {region}\")\n\n    aiplatform.init(project=project_id, location=region)\n\n    model = aiplatform.Model(model_resource_name)\n    endpoint = model.deploy(\n        machine_type=\"n1-standard-2\",\n        min_replica_count=1,\n        max_replica_count=1\n    )\n\n    return (endpoint.resource_name,)\n\n"
+            ],
+            "image": "python:3.9-slim"
+          }
+        },
+        "exec-download-taxi-data": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "download_taxi_data"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'google-cloud-storage' 'tqdm' 'kfp==1.8.22' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef download_taxi_data(\n    file:str, \n    bucket_name:str\n) -> str:\n    \"\"\"\n    Data will be downloaded from 'https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page'\n    which is public dataset from New York.\n    This downloaded parquet file will be located in 'data'folder of your GCS bucket.\n    \"\"\"\n\n    from google.cloud import storage\n    from tqdm import tqdm\n    import requests\n    import os\n    import logging\n\n\n    def download_to_local(download_url, file):\n        \"\"\"Download the target file from internet to local\"\"\"\n\n        if os.path.isfile(f'./data/{file}'):\n            logging.info('Already exist')\n            pass\n\n        else:\n            if not os.path.exists('data'):\n                os.mkdir('data')\n\n            file_url = download_url + file\n            response = requests.get(file_url, stream=True)\n            logging.info(f'downloading.. {file}')\n\n            with open(f'./data/{file}', 'wb') as f_in:\n                for chunk in tqdm(response.iter_content()):\n                    f_in.write(chunk)\n            logging.info('Download finished!')\n\n\n    def upload_to_blob(bucket_name, file):\n        \"\"\"Upload the temporary file to the GCS blob\"\"\"\n\n        with open(f'./data/{file}', 'rb') as f_out:\n            result = blob.upload_from_file(f_out)\n\n        logging.info(f'Finished downloading {file} to GCS bucket {bucket_name}')\n\n\n    download_url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/'\n\n    storage_client = storage.Client()\n    bucket = storage_client.bucket(bucket_name)\n    blob = bucket.blob(f'data/{file}')\n\n    if blob.exists():\n        logging.info(f'Blob {file} already exists in bucket {bucket_name}')\n        return f'gs://{bucket_name}/data/{file}'\n\n    download_to_local(download_url, file)\n    upload_to_blob(bucket_name, file)\n\n    return f'gs://{bucket_name}/data/{file}'\n\n"
+            ],
+            "image": "python:3.10-slim"
+          }
+        },
+        "exec-evaluate-model": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "evaluate_model"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'tqdm' 'fastparquet' 'pyarrow' 'numpy' 'kfp==1.8.22' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef evaluate_model(\n    val_data: Input[Dataset],\n    model: Input[Model],\n    target_column_name: str,\n    deployment_metric: str,\n    deployment_metric_threshold: float,\n    kpi: Output[Metrics],\n) -> NamedTuple(\n    \"Outputs\", [\n        (\"dep_decision\", str),\n    ]\n):\n    \"\"\"\n    Evaluating model good enough to deploy.\n\n    Data from preprocessing step will be used for evalutaion (valid_data).\n    given 'deployment_metric', 'deployment_metric_threshold' values are compared.\n    if passing threshold, model will be registered aand deployed,\n    if not, this is the pipeline end.\n    \"\"\"\n\n    from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error, mean_absolute_percentage_error\n    import pandas as pd\n    from google.cloud import storage\n    from tqdm import tqdm\n    import requests\n    import os\n    import pickle\n    import logging\n    import numpy as np\n\n\n    def prepare_dictionaries(df: pd.DataFrame):\n        \"\"\"Composite\"\"\"\n        df['PU_DO'] = df['PULocationID'] + '_' + df['DOLocationID']\n        categorical = ['PU_DO']\n        numerical = ['trip_distance']\n        dicts = df[categorical + numerical].to_dict(orient='records')\n        return dicts\n\n\n    val_ds = pd.read_parquet(val_data.path)\n    target = target_column_name\n\n    X_test = prepare_dictionaries(val_ds)\n    y_test = val_ds[target].values\n\n    logging.info(f\"model.path : {model.path}\")\n    file_name = model.path + f\".pkl\"\n    logging.info(f\"file_name : {file_name}\")\n\n    with open(file_name, 'rb') as f:  \n        model = pickle.load(f)\n\n    y_pred = model.predict(X_test)\n    r2 = r2_score(y_true=y_test, y_pred=y_pred)\n    mae = mean_absolute_error(y_true=y_test, y_pred=y_pred)\n    mse = mean_squared_error(y_true=y_test, y_pred=y_pred)\n    mape = mean_absolute_percentage_error(y_true=y_test, y_pred=y_pred)\n    rmse = np.sqrt(mse)\n\n    model_metrics = {\n        \"r2\": r2, \n        \"mae\": mae, \n        \"mape\": mape, \n        \"mse\" : mse, \n        \"rmse\" : rmse,\n    }\n\n    logging.info(f\"Adjusted_R2 : {r2}\")\n    logging.info(f\"Mean Absolute Error : {mae}\")\n    logging.info(f\"Mean Absolute Percentage Error : {round(mape,4)*100}%\")\n    logging.info(f\"Mean Squared Error : {mse}\")\n    logging.info(f\"Root Mean Squared Error : {rmse}\")\n\n    kpi.log_metric(\"Adjusted_R2\", float(r2))\n    kpi.log_metric(\"Mean Absolute Error\", float(mae))\n    kpi.log_metric(\"Mean Absolute Percentage Error\", float(mape))\n    kpi.log_metric(\"Mean Squared Error\", float(mse))\n    kpi.log_metric(\"Root Mean Squared Error\", float(rmse))\n\n    actual_metric_value = model_metrics.get(deployment_metric)\n\n    if actual_metric_value >= deployment_metric_threshold:\n        dep_decision = \"true\"\n    else:\n        dep_decision = \"false\"\n\n    return (dep_decision,)\n\n"
+            ],
+            "image": "python:3.10-slim"
+          }
+        },
+        "exec-preprocess-taxi-data": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "preprocess_taxi_data"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'tqdm' 'fastparquet' 'pyarrow' 'numpy' 'kfp==1.8.22' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef preprocess_taxi_data(\n    input_data: str,\n    train_size: float,\n    valid_size: float,\n    test_size: float,\n    train_data: Output[Dataset],\n    valid_data: Output[Dataset],\n    test_data: Output[Dataset],\n) -> str:\n    \"\"\"\n    Data will be preprocessed this step.\n    - Model type: regression model\n    - Target column: duration (will be calculated with pickup time & dropoff time) \n    - Feature columns: pickup location (PULocationID), dropoff location(DOLocationID) and trip distance\n    \"\"\"\n\n    import pandas as pd\n    import numpy as np\n\n\n    df = pd.read_parquet(input_data)\n    columns = [\n        'PULocationID',\n        'DOLocationID',\n        'lpep_dropoff_datetime',\n        'lpep_pickup_datetime',\n        'trip_distance',\n    ]\n    df = df[columns]\n\n    df['duration'] = df.lpep_dropoff_datetime - df.lpep_pickup_datetime\n    df.duration = df.duration.dt.total_seconds() / 60\n    df = df[(df.duration >= 1) & (df.duration <= 60)] # Get rid of outliers\n\n    categorical = ['PULocationID', 'DOLocationID']\n    df[categorical] = df[categorical].astype(str)\n\n    train_ds, valid_ds, test_ds = np.split(df.sample(frac=1, random_state=42), [int((train_size)*len(df)), int((1-test_size)*len(df))])\n\n    # Use .path for passing data in Artifact\n    train_ds.to_parquet(train_data.path, index=False) \n    valid_ds.to_parquet(valid_data.path, index=False)\n    test_ds.to_parquet(test_data.path, index=False)\n\n"
+            ],
+            "image": "python:3.10-slim"
+          }
+        },
+        "exec-register-model": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "register_model"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'pyarrow' 'scikit-learn' 'fsspec' 'gcsfs' 'google-cloud-aiplatform' 'kfp==1.8.22' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef register_model(\n    serving_container_uri: str,\n    project_id: str,\n    region: str,\n    model_name: str, \n    model: Input[Model], \n)-> NamedTuple(\n    \"Outputs\",\n    [\n        (\"model_resource_name\", str),  # Return parameter.\n    ],\n):\n    \"\"\"Regster the model to Vertex AI model registry\"\"\"\n\n    from google.cloud import aiplatform\n    import logging\n\n\n    logging.info(f\"serving_container_uri: {serving_container_uri}\")\n    logging.info(f\"project_id: {project_id}\")\n    logging.info(f\"region: {region}\")\n    logging.info(f\"model: {model}\")\n    logging.info(f\"model.uri: {model.uri[:-5]}\")\n\n    # for artifact_uri arg,\n    # The model name must be one of: saved_model.pb, model.pkl, model.joblib, or model.bst, depending on which library you used.\n    aiplatform.init(project=project_id, location=region)\n    model = aiplatform.Model.upload(\n        display_name= model_name,\n        # artifact_uri=model.uri,\n        artifact_uri=model.uri[:-5],\n        serving_container_image_uri=serving_container_uri\n    )\n\n    return (model.resource_name,)\n\n"
+            ],
+            "image": "python:3.9-slim"
+          }
+        },
+        "exec-test-prediction": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "test_prediction"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'pyarrow' 'google-cloud-aiplatform' 'google-cloud-storage' 'kfp==1.8.22' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef test_prediction(\n    project_id: str ,\n    region: str,\n    test_ds: Input[Dataset],\n    endpoint_resource_name: str,\n    bucket_name: str,\n    prediction_blob: str\n) -> str:\n\n    \"\"\"Get predictions from model served with test data\"\"\"\n    from google.cloud import aiplatform\n    from google.cloud import storage\n    import logging\n    import pandas as pd\n    import json\n\n\n    logging.info(f\"testds: {test_ds}\")\n    logging.info(f\"test_ds: {test_ds.path}\")\n    logging.info(f\"model_resource_name : {region}\")\n\n    def prepare_dictionaries(df: pd.DataFrame):\n        \"\"\"Composite\"\"\"\n        df['PU_DO'] = df['PULocationID'] + '_' + df['DOLocationID']\n        categorical = ['PU_DO']\n        numerical = ['trip_distance']\n        dicts = df[categorical + numerical].to_dict(orient='records')\n        return dicts\n\n\n    def get_predictions(instances, region, endpoint_resource_name):\n        \"\"\"Get predictions from deployed model\"\"\"\n\n        client_options = {\"api_endpoint\": f\"{region}-aiplatform.googleapis.com\"}\n        client = aiplatform.gapic.PredictionServiceClient(client_options=client_options)\n\n        response = client.predict(\n            endpoint=endpoint_resource_name, \n            instances=instances\n        )\n\n        predictions = {\n            \"predictions\": list(response.predictions)\n        }\n\n        # Write predictions to a JSON file\n        output_file = \"predictions.json\"\n        with open(output_file, \"w\") as f:\n            json.dump(predictions, f)\n\n        return output_file\n\n\n    def upload_to_gcs(prediction_file, bucket_name, prediction_blob):\n        \"\"\"Upload the file to Google Cloud Storage\"\"\"\n        client = storage.Client()\n        bucket = client.bucket(bucket_name)\n        blob = bucket.blob(prediction_blob)\n        blob.upload_from_filename(prediction_file)\n\n        logging.info(f\"Predictions uploaded to gs://{bucket_name}/{prediction_blob} successfully!\")    \n\n\n    test_ds = pd.read_parquet(test_ds.path)\n    test_dict_ds = prepare_dictionaries(test_ds)\n\n    prediction_file = get_predictions(\n        instances=test_dict_ds,\n        region=region,\n        endpoint_resource_name=endpoint_resource_name,\n    )\n\n    upload_to_gcs(prediction_file, bucket_name, prediction_blob)\n\n    return f'gs://{bucket_name}/{prediction_blob}' \n\n"
+            ],
+            "image": "python:3.9-slim"
+          }
+        },
+        "exec-train-taxi-data": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "train_taxi_data"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'fastparquet' 'pyarrow' 'kfp==1.8.22' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef train_taxi_data(\n    train_data: Input[Dataset], \n    params: dict,\n    model: Output[Model],\n)-> str:\n    \"\"\"\n    This step will train the regression model using Scikit-learn randomforest regressor.\n    - Model type: regression model\n    - Target column: duration (will be calculated with pickup time & dropoff time) \n    - Feature columns: pickup location (PULocationID), dropoff location(DOLocationID) and trip distance\n    \"\"\"\n\n    import pandas as pd\n    import pickle\n    import os\n    from sklearn.feature_extraction import DictVectorizer\n    from sklearn.ensemble import RandomForestRegressor\n    from sklearn.pipeline import make_pipeline\n    import sklearn\n\n\n    def prepare_dictionaries(df: pd.DataFrame):\n        \"\"\"Composite\"\"\"\n        df['PU_DO'] = df['PULocationID'] + '_' + df['DOLocationID']\n        categorical = ['PU_DO']\n        numerical = ['trip_distance']\n        dicts = df[categorical + numerical].to_dict(orient='records')\n        return dicts\n\n\n    def train_model(X_train, y_train):\n        \"\"\"Model training\"\"\"\n        pipeline = make_pipeline(\n            DictVectorizer(),\n            RandomForestRegressor(**params, n_jobs=-1)\n        )\n        pipeline.fit(X_train, y_train)\n        return pipeline\n\n\n    df = pd.read_parquet(train_data.path)\n    target = 'duration'\n    X_train = prepare_dictionaries(df)\n    y_train = df[target].values\n\n    my_model = train_model(X_train, y_train)\n\n    model.metadata[\"model_name\"] = \"RandomForestRegressor\"\n    model.metadata[\"framework\"] = \"sklearn\"\n    model.metadata[\"framework_version\"] = sklearn.__version__\n    file_name = model.path + f\".pkl\"\n\n    with open(file_name, 'wb') as f:\n        pickle.dump(my_model, f)\n\n"
+            ],
+            "image": "python:3.9-slim"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "taxi-data-model-kfp"
+    },
+    "root": {
+      "dag": {
+        "outputs": {
+          "artifacts": {
+            "evaluate-model-kpi": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "kpi",
+                  "producerSubtask": "evaluate-model"
+                }
+              ]
+            }
+          }
+        },
+        "tasks": {
+          "condition-deploy-decision-1": {
+            "componentRef": {
+              "name": "comp-condition-deploy-decision-1"
+            },
+            "dependentTasks": [
+              "evaluate-model",
+              "preprocess-taxi-data",
+              "train-taxi-data"
+            ],
+            "inputs": {
+              "artifacts": {
+                "pipelineparam--preprocess-taxi-data-test_data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "test_data",
+                    "producerTask": "preprocess-taxi-data"
+                  }
+                },
+                "pipelineparam--train-taxi-data-model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "train-taxi-data"
+                  }
+                }
+              },
+              "parameters": {
+                "pipelineparam--bucket_name": {
+                  "componentInputParameter": "bucket_name"
+                },
+                "pipelineparam--evaluate-model-dep_decision": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "dep_decision",
+                    "producerTask": "evaluate-model"
+                  }
+                },
+                "pipelineparam--model_name": {
+                  "componentInputParameter": "model_name"
+                },
+                "pipelineparam--prediction_blob": {
+                  "componentInputParameter": "prediction_blob"
+                },
+                "pipelineparam--project_id": {
+                  "componentInputParameter": "project_id"
+                },
+                "pipelineparam--region": {
+                  "componentInputParameter": "region"
+                },
+                "pipelineparam--serving_container_uri": {
+                  "componentInputParameter": "serving_container_uri"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "condition-deploy-decision-1"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--evaluate-model-dep_decision'].string_value == 'true'"
+            }
+          },
+          "download-taxi-data": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-download-taxi-data"
+            },
+            "inputs": {
+              "parameters": {
+                "bucket_name": {
+                  "componentInputParameter": "bucket_name"
+                },
+                "file": {
+                  "componentInputParameter": "input_data"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "download-taxi-data"
+            }
+          },
+          "evaluate-model": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-evaluate-model"
+            },
+            "dependentTasks": [
+              "preprocess-taxi-data",
+              "train-taxi-data"
+            ],
+            "inputs": {
+              "artifacts": {
+                "model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "train-taxi-data"
+                  }
+                },
+                "val_data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "valid_data",
+                    "producerTask": "preprocess-taxi-data"
+                  }
+                }
+              },
+              "parameters": {
+                "deployment_metric": {
+                  "componentInputParameter": "deployment_metric"
+                },
+                "deployment_metric_threshold": {
+                  "componentInputParameter": "deployment_metric_threshold"
+                },
+                "target_column_name": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "duration"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "evaluate-model"
+            }
+          },
+          "preprocess-taxi-data": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-preprocess-taxi-data"
+            },
+            "dependentTasks": [
+              "download-taxi-data"
+            ],
+            "inputs": {
+              "parameters": {
+                "input_data": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "download-taxi-data"
+                  }
+                },
+                "test_size": {
+                  "componentInputParameter": "test_size"
+                },
+                "train_size": {
+                  "componentInputParameter": "train_size"
+                },
+                "valid_size": {
+                  "componentInputParameter": "valid_size"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "preprocess-taxi-data"
+            }
+          },
+          "train-taxi-data": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-train-taxi-data"
+            },
+            "dependentTasks": [
+              "preprocess-taxi-data"
+            ],
+            "inputs": {
+              "artifacts": {
+                "train_data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "train_data",
+                    "producerTask": "preprocess-taxi-data"
+                  }
+                }
+              },
+              "parameters": {
+                "params": {
+                  "componentInputParameter": "params"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "train-taxi-data"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "bucket_name": {
+            "type": "STRING"
+          },
+          "deployment_metric": {
+            "type": "STRING"
+          },
+          "deployment_metric_threshold": {
+            "type": "DOUBLE"
+          },
+          "input_data": {
+            "type": "STRING"
+          },
+          "model_name": {
+            "type": "STRING"
+          },
+          "params": {
+            "type": "STRING"
+          },
+          "prediction_blob": {
+            "type": "STRING"
+          },
+          "project_id": {
+            "type": "STRING"
+          },
+          "region": {
+            "type": "STRING"
+          },
+          "serving_container_uri": {
+            "type": "STRING"
+          },
+          "test_size": {
+            "type": "DOUBLE"
+          },
+          "train_size": {
+            "type": "DOUBLE"
+          },
+          "valid_size": {
+            "type": "DOUBLE"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "evaluate-model-kpi": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.22"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "yorrr78-dev-111111-mlops-bucket/pipeline_root/",
+    "parameters": {
+      "bucket_name": {
+        "stringValue": ""
+      },
+      "deployment_metric": {
+        "stringValue": "r2"
+      },
+      "deployment_metric_threshold": {
+        "doubleValue": 0.7
+      },
+      "input_data": {
+        "stringValue": ""
+      },
+      "model_name": {
+        "stringValue": "sklearn-kubeflow-nytaxi-regression-model"
+      },
+      "params": {
+        "stringValue": "{\"max_depth\": 20, \"min_samples_leaf\": 10, \"n_estimators\": 100, \"random_state\": 0}"
+      },
+      "prediction_blob": {
+        "stringValue": "predictions/predictions.json"
+      },
+      "project_id": {
+        "stringValue": ""
+      },
+      "region": {
+        "stringValue": "asia-northeast3"
+      },
+      "serving_container_uri": {
+        "stringValue": "asia-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-3:latest"
+      },
+      "test_size": {
+        "doubleValue": 0.1
+      },
+      "train_size": {
+        "doubleValue": 0.8
+      },
+      "valid_size": {
+        "doubleValue": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+name: Preprocess taxi data
+description: Data will be preprocessed this step.
+inputs:
+- {name: input_data, type: String}
+- {name: train_size, type: Float}
+- {name: valid_size, type: Float}
+- {name: test_size, type: Float}
+outputs:
+- {name: train_data, type: Dataset}
+- {name: valid_data, type: Dataset}
+- {name: test_data, type: Dataset}
+- {name: Output, type: String}
+implementation:
+  container:
+    image: python:3.10-slim
+    command:
+    - sh
+    - -c
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'tqdm' 'fastparquet' 'pyarrow' 'numpy' 'kfp==1.8.22' && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef preprocess_taxi_data(\n    input_data: str,\n    train_size:\
+      \ float,\n    valid_size: float,\n    test_size: float,\n    train_data: Output[Dataset],\n\
+      \    valid_data: Output[Dataset],\n    test_data: Output[Dataset],\n) -> str:\n\
+      \    \"\"\"\n    Data will be preprocessed this step.\n    - Model type: regression\
+      \ model\n    - Target column: duration (will be calculated with pickup time\
+      \ & dropoff time) \n    - Feature columns: pickup location (PULocationID), dropoff\
+      \ location(DOLocationID) and trip distance\n    \"\"\"\n\n    import pandas\
+      \ as pd\n    import numpy as np\n\n\n    df = pd.read_parquet(input_data)\n\
+      \    columns = [\n        'PULocationID',\n        'DOLocationID',\n       \
+      \ 'lpep_dropoff_datetime',\n        'lpep_pickup_datetime',\n        'trip_distance',\n\
+      \    ]\n    df = df[columns]\n\n    df['duration'] = df.lpep_dropoff_datetime\
+      \ - df.lpep_pickup_datetime\n    df.duration = df.duration.dt.total_seconds()\
+      \ / 60\n    df = df[(df.duration >= 1) & (df.duration <= 60)] # Get rid of outliers\n\
+      \n    categorical = ['PULocationID', 'DOLocationID']\n    df[categorical] =\
+      \ df[categorical].astype(str)\n\n    train_ds, valid_ds, test_ds = np.split(df.sample(frac=1,\
+      \ random_state=42), [int((train_size)*len(df)), int((1-test_size)*len(df))])\n\
+      \n    # Use .path for passing data in Artifact\n    train_ds.to_parquet(train_data.path,\
+      \ index=False) \n    valid_ds.to_parquet(valid_data.path, index=False)\n   \
+      \ test_ds.to_parquet(test_data.path, index=False)\n\n"
+    args:
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - preprocess_taxi_data

@@ -1,0 +1,73 @@
+name: Evaluate model
+description: Evaluating model good enough to deploy.
+inputs:
+- {name: val_data, type: Dataset}
+- {name: model, type: Model}
+- {name: target_column_name, type: String}
+- {name: deployment_metric, type: String}
+- {name: deployment_metric_threshold, type: Float}
+outputs:
+- {name: kpi, type: Metrics}
+- {name: dep_decision, type: String}
+implementation:
+  container:
+    image: python:3.10-slim
+    command:
+    - sh
+    - -c
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'tqdm' 'fastparquet' 'pyarrow' 'numpy' 'kfp==1.8.22' && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef evaluate_model(\n    val_data: Input[Dataset],\n    model:\
+      \ Input[Model],\n    target_column_name: str,\n    deployment_metric: str,\n\
+      \    deployment_metric_threshold: float,\n    kpi: Output[Metrics],\n) -> NamedTuple(\n\
+      \    \"Outputs\", [\n        (\"dep_decision\", str),\n    ]\n):\n    \"\"\"\
+      \n    Evaluating model good enough to deploy.\n\n    Data from preprocessing\
+      \ step will be used for evalutaion (valid_data).\n    given 'deployment_metric',\
+      \ 'deployment_metric_threshold' values are compared.\n    if passing threshold,\
+      \ model will be registered aand deployed,\n    if not, this is the pipeline\
+      \ end.\n    \"\"\"\n\n    from sklearn.metrics import mean_absolute_error, r2_score,\
+      \ mean_squared_error, mean_absolute_percentage_error\n    import pandas as pd\n\
+      \    from google.cloud import storage\n    from tqdm import tqdm\n    import\
+      \ requests\n    import os\n    import pickle\n    import logging\n    import\
+      \ numpy as np\n\n\n    def prepare_dictionaries(df: pd.DataFrame):\n       \
+      \ \"\"\"Composite\"\"\"\n        df['PU_DO'] = df['PULocationID'] + '_' + df['DOLocationID']\n\
+      \        categorical = ['PU_DO']\n        numerical = ['trip_distance']\n  \
+      \      dicts = df[categorical + numerical].to_dict(orient='records')\n     \
+      \   return dicts\n\n\n    val_ds = pd.read_parquet(val_data.path)\n    target\
+      \ = target_column_name\n\n    X_test = prepare_dictionaries(val_ds)\n    y_test\
+      \ = val_ds[target].values\n\n    logging.info(f\"model.path : {model.path}\"\
+      )\n    file_name = model.path + f\".pkl\"\n    logging.info(f\"file_name : {file_name}\"\
+      )\n\n    with open(file_name, 'rb') as f:  \n        model = pickle.load(f)\n\
+      \n    y_pred = model.predict(X_test)\n    r2 = r2_score(y_true=y_test, y_pred=y_pred)\n\
+      \    mae = mean_absolute_error(y_true=y_test, y_pred=y_pred)\n    mse = mean_squared_error(y_true=y_test,\
+      \ y_pred=y_pred)\n    mape = mean_absolute_percentage_error(y_true=y_test, y_pred=y_pred)\n\
+      \    rmse = np.sqrt(mse)\n\n    model_metrics = {\n        \"r2\": r2, \n  \
+      \      \"mae\": mae, \n        \"mape\": mape, \n        \"mse\" : mse, \n \
+      \       \"rmse\" : rmse,\n    }\n\n    logging.info(f\"Adjusted_R2 : {r2}\"\
+      )\n    logging.info(f\"Mean Absolute Error : {mae}\")\n    logging.info(f\"\
+      Mean Absolute Percentage Error : {round(mape,4)*100}%\")\n    logging.info(f\"\
+      Mean Squared Error : {mse}\")\n    logging.info(f\"Root Mean Squared Error :\
+      \ {rmse}\")\n\n    kpi.log_metric(\"Adjusted_R2\", float(r2))\n    kpi.log_metric(\"\
+      Mean Absolute Error\", float(mae))\n    kpi.log_metric(\"Mean Absolute Percentage\
+      \ Error\", float(mape))\n    kpi.log_metric(\"Mean Squared Error\", float(mse))\n\
+      \    kpi.log_metric(\"Root Mean Squared Error\", float(rmse))\n\n    actual_metric_value\
+      \ = model_metrics.get(deployment_metric)\n\n    if actual_metric_value >= deployment_metric_threshold:\n\
+      \        dep_decision = \"true\"\n    else:\n        dep_decision = \"false\"\
+      \n\n    return (dep_decision,)\n\n"
+    args:
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - evaluate_model

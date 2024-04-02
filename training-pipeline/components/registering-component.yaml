@@ -1,0 +1,50 @@
+name: Register model
+description: Regster the model to Vertex AI model registry
+inputs:
+- {name: serving_container_uri, type: String}
+- {name: project_id, type: String}
+- {name: region, type: String}
+- {name: model_name, type: String}
+- {name: model, type: Model}
+outputs:
+- {name: model_resource_name, type: String}
+implementation:
+  container:
+    image: python:3.9-slim
+    command:
+    - sh
+    - -c
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'pyarrow' 'scikit-learn' 'fsspec' 'gcsfs' 'google-cloud-aiplatform' 'kfp==1.8.22' && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef register_model(\n    serving_container_uri: str,\n    project_id:\
+      \ str,\n    region: str,\n    model_name: str, \n    model: Input[Model], \n\
+      )-> NamedTuple(\n    \"Outputs\",\n    [\n        (\"model_resource_name\",\
+      \ str),  # Return parameter.\n    ],\n):\n    \"\"\"Regster the model to Vertex\
+      \ AI model registry\"\"\"\n\n    from google.cloud import aiplatform\n    import\
+      \ logging\n\n\n    logging.info(f\"serving_container_uri: {serving_container_uri}\"\
+      )\n    logging.info(f\"project_id: {project_id}\")\n    logging.info(f\"region:\
+      \ {region}\")\n    logging.info(f\"model: {model}\")\n    logging.info(f\"model.uri:\
+      \ {model.uri[:-5]}\")\n\n    # for artifact_uri arg,\n    # The model name must\
+      \ be one of: saved_model.pb, model.pkl, model.joblib, or model.bst, depending\
+      \ on which library you used.\n    aiplatform.init(project=project_id, location=region)\n\
+      \    model = aiplatform.Model.upload(\n        display_name= model_name,\n \
+      \       # artifact_uri=model.uri,\n        artifact_uri=model.uri[:-5],\n  \
+      \      serving_container_image_uri=serving_container_uri\n    )\n\n    return\
+      \ (model.resource_name,)\n\n"
+    args:
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - register_model

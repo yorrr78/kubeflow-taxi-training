@@ -1,0 +1,62 @@
+name: Download taxi data
+description: Data will be downloaded from 'https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page'
+inputs:
+- {name: bucket_name, type: String}
+outputs:
+- {name: Output, type: String}
+implementation:
+  container:
+    image: python:3.10-slim
+    command:
+    - sh
+    - -c
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'google-cloud-storage' 'tqdm' 'kfp==1.8.22' && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef download_taxi_data(\n    bucket_name:str\n) -> str:\n    \"\
+      \"\"\n    Data will be downloaded from 'https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page'\n\
+      \    which is public dataset from New York.\n    This downloaded parquet file\
+      \ will be located in 'data'folder of your GCS bucket.\n    \"\"\"\n\n    from\
+      \ google.cloud import storage\n    from tqdm import tqdm\n    import requests\n\
+      \    import os\n    import logging\n    from datetime import datetime, timedelta\n\
+      \    import random \n\n\n    def get_file_name_by_date():\n        \"\"\"Get\
+      \ the file name from pipeline running date\"\"\"\n\n        # # Get the previous\
+      \ month data file name \n        # current_time = datetime.now() - timedelta(days=31)\n\
+      \        # file_month = '%02d' % current_time.month\n        # file = f'green_tripdata_2022-{file_month}.parquet'\n\
+      \n        # Test purpose\n        random_number = random.randint(1, 12)\n  \
+      \      current_month = '%02d' % random_number\n\n        return f'green_tripdata_2022-{current_month}.parquet'\n\
+      \n\n    def download_to_local(download_url, file):\n        \"\"\"Download the\
+      \ target file from internet to local\"\"\"\n\n        if os.path.isfile(f'./data/{file}'):\n\
+      \            logging.info('Already exist')\n            pass\n\n        else:\n\
+      \            if not os.path.exists('data'):\n                os.mkdir('data')\n\
+      \n            file_url = download_url + file\n            response = requests.get(file_url,\
+      \ stream=True)\n            logging.info(f'downloading.. {file}')\n\n      \
+      \      with open(f'./data/{file}', 'wb') as f_in:\n                for chunk\
+      \ in tqdm(response.iter_content()):\n                    f_in.write(chunk)\n\
+      \            logging.info('Download finished!')\n\n\n    def upload_to_blob(bucket_name,\
+      \ file):\n        \"\"\"Upload the temporary file to the GCS blob\"\"\"\n\n\
+      \        with open(f'./data/{file}', 'rb') as f_out:\n            result = blob.upload_from_file(f_out)\n\
+      \n        logging.info(f'Finished downloading {file} to GCS bucket {bucket_name}')\n\
+      \n\n    download_url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/'\n\
+      \    file = get_file_name_by_date()\n\n    storage_client = storage.Client()\n\
+      \    bucket = storage_client.bucket(bucket_name)\n    blob = bucket.blob(f'data/{file}')\n\
+      \n    if blob.exists():\n        logging.info(f'Blob {file} already exists in\
+      \ bucket {bucket_name}')\n        return f'gs://{bucket_name}/data/{file}'\n\
+      \n    download_to_local(download_url, file)\n    upload_to_blob(bucket_name,\
+      \ file)\n\n    return f'gs://{bucket_name}/data/{file}'\n\n"
+    args:
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - download_taxi_data

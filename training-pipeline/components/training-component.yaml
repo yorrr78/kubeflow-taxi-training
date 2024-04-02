@@ -1,0 +1,57 @@
+name: Train taxi data
+description: This step will train the regression model using Scikit-learn randomforest
+  regressor.
+inputs:
+- {name: train_data, type: Dataset}
+- {name: params, type: JsonObject}
+outputs:
+- {name: model, type: Model}
+- {name: Output, type: String}
+implementation:
+  container:
+    image: python:3.9-slim
+    command:
+    - sh
+    - -c
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'fastparquet' 'pyarrow' 'kfp==1.8.22' && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef train_taxi_data(\n    train_data: Input[Dataset], \n    params:\
+      \ dict,\n    model: Output[Model],\n)-> str:\n    \"\"\"\n    This step will\
+      \ train the regression model using Scikit-learn randomforest regressor.\n  \
+      \  - Model type: regression model\n    - Target column: duration (will be calculated\
+      \ with pickup time & dropoff time) \n    - Feature columns: pickup location\
+      \ (PULocationID), dropoff location(DOLocationID) and trip distance\n    \"\"\
+      \"\n\n    import pandas as pd\n    import pickle\n    import os\n    from sklearn.feature_extraction\
+      \ import DictVectorizer\n    from sklearn.ensemble import RandomForestRegressor\n\
+      \    from sklearn.pipeline import make_pipeline\n    import sklearn\n\n\n  \
+      \  def prepare_dictionaries(df: pd.DataFrame):\n        \"\"\"Composite\"\"\"\
+      \n        df['PU_DO'] = df['PULocationID'] + '_' + df['DOLocationID']\n    \
+      \    categorical = ['PU_DO']\n        numerical = ['trip_distance']\n      \
+      \  dicts = df[categorical + numerical].to_dict(orient='records')\n        return\
+      \ dicts\n\n\n    def train_model(X_train, y_train):\n        \"\"\"Model training\"\
+      \"\"\n        pipeline = make_pipeline(\n            DictVectorizer(),\n   \
+      \         RandomForestRegressor(**params, n_jobs=-1)\n        )\n        pipeline.fit(X_train,\
+      \ y_train)\n        return pipeline\n\n\n    df = pd.read_parquet(train_data.path)\n\
+      \    target = 'duration'\n    X_train = prepare_dictionaries(df)\n    y_train\
+      \ = df[target].values\n\n    my_model = train_model(X_train, y_train)\n\n  \
+      \  model.metadata[\"model_name\"] = \"RandomForestRegressor\"\n    model.metadata[\"\
+      framework\"] = \"sklearn\"\n    model.metadata[\"framework_version\"] = sklearn.__version__\n\
+      \    file_name = model.path + f\".pkl\"\n\n    with open(file_name, 'wb') as\
+      \ f:\n        pickle.dump(my_model, f)\n\n"
+    args:
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - train_taxi_data
